@@ -1,6 +1,7 @@
-const assert = require('chai').assert
-const app = require('../server')
-const request = require('request')
+const assert = require('chai').assert;
+const app = require('../server');
+const request = require('request');
+const Secret = require('../lib/secrets')
 
 describe('Server', () => {
   before((done) => {
@@ -36,25 +37,33 @@ describe('Server', () => {
     })
 
     it('should receive and store data', (done) => {
-      const message = { message: 'I like pineapples' }
+      const message = { message: 'I like pineapples'}
       this.request.post('/api/secrets', { form: message }, (error, response) => {
         if (error) { done(error) }
-        const secretCount = Object.keys(app.locals.secrets).length
-        assert.equal(secretCount, 1)
-        done()
+        Secret.findSecretByMessage(message.message)
+        .then( data => {
+          assert.equal(data.rowCount, 1)
+          done()
+        })
       })
     })
   })
 
   describe('GET /api/secrets/:id', () => {
-    beforeEach(() => {
-      app.locals.secrets = {
-        horse: 'Penelope'
-      }
+    beforeEach((done) => {
+      const date = new Date
+      const message = "I open bananas from the wrong side"
+      Secret.insertSecret(message, date)
+      .then(() => done())
+      .catch(done);
+    })
+
+    afterEach((done) => {
+      Secret.clearSecrets().then(() => done());
     })
 
     it('should return 404 if resource is not found', (done) => {
-      this.request.get('/api/secrets/laszlo', (error, response) => {
+      this.request.get('/api/secrets/100', (error, response) => {
         if (error) { done(error) }
         assert.equal(response.statusCode, 404)
         done()
@@ -62,12 +71,17 @@ describe('Server', () => {
     })
 
     it('should return the id and message from the resource found', (done) => {
-      this.request.get('/api/secrets/horse', (error, response) => {
-        const id = Object.keys(app.locals.secrets)[0]
-        const message = app.locals.secrets[id]
+      this.request.get('/api/secrets/1', (error, response) => {
         if (error) { done(error) }
-        assert.include(response.body, id)
-        assert.include(response.body, message)
+
+        const id = 1
+        const message = "I open bananas from the wrong side"
+
+        let parsedSecret = JSON.parse(response.body)
+
+        assert.equal(parsedSecret.id, id)
+        assert.equal(parsedSecret.message, message)
+        assert.ok(parsedSecret.created_at)
         done()
       })
     })

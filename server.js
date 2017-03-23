@@ -1,13 +1,10 @@
 const express = require('express')
 const app = express()
 const bodyParser = require('body-parser')
+const Secret = require('./lib/secrets')
 
 app.set('port', process.env.PORT || 3000)
 app.locals.title = 'Secret Box'
-app.locals.secrets = {
-  wowowow: 'I am a banana',
-  900: 'I am a pineapple'
-}
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({extended: true}))
 
@@ -16,28 +13,27 @@ app.get('/', (request, response) => {
 })
 
 app.post('/api/secrets', (request, response) => {
-  const id = Date.now()
+  const created_at = new Date
   const message = request.body.message
   if (!message) {
     return response.status(422).send({
-      error: 'No message property provided'
+    error: 'No message provided'
     })
   }
-  app.locals.secrets[id] = message
-  response.status(201).json({
-    id, message
+  Secret.insertSecret(message, created_at)
+  .then( (data) => {
+    let newSecret = data.rows[0]
+    response.status(201).json(newSecret)
   })
 })
 
 app.get('/api/secrets/:id', (request, response) => {
-  const id = request.params.id
-  const message = app.locals.secrets[id]
-
-  if (!message) {
-    return response.sendStatus(404)
-  }
-  response.json({
-    id, message
+  Secret.findSecretById(request.params.id)
+  .then(data => {
+    if(!data.rowCount) {
+      return response.sendStatus(404)
+    }
+    response.json(data.rows[0])
   })
 })
 
